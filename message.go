@@ -92,15 +92,21 @@ func (x *Channel[Message]) MakeChildChannel() *Channel[Message] {
 	return subChannel
 }
 
+// ReceiverWait 消息的接收方调用的，消息的接收方需要同步等待此消息信道被处理完毕时调用
 func (x *Channel[Message]) ReceiverWait() {
 	// 消息接收方等待发送消息的协程退出就认为是信道已经处理完了
 	x.selfWorkerWg.Wait()
 }
 
-func (x *Channel[Message]) SenderWaitAndClose(f MapRunFunc[Message]) {
+// SenderWaitAndClose 消息的发送方调用，消息的发送方需要同步等待消息被处理完时调用
+func (x *Channel[Message]) SenderWaitAndClose(f ...MapRunFunc[Message]) {
+
+	if len(f) == 0 {
+		f = append(f, nil)
+	}
 
 	// 等待子channel消费完成退出
-	x.childrenChannelMap.BlockUtilEmpty(f)
+	x.childrenChannelMap.BlockUtilEmpty(f[0])
 
 	// 关闭channel表示发送者不会再发送了，发送完队列中剩余的想这些就要退出了
 	close(x.channel)

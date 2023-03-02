@@ -11,13 +11,22 @@ var idGenerator = atomic.Uint64{}
 
 type MapRunFunc[Message any] func(m map[uint64]*Channel[Message])
 
+// ChildrenMap 线程安全的map，用于存放当前信道的子信道
 type ChildrenMap[Message any] struct {
-	lock       *sync.RWMutex
+
+	// 用于全局互斥操作
+	lock *sync.Mutex
+
+	// 用于记录当前channel的子channel
 	channelMap map[uint64]*Channel[Message]
 }
 
+// NewChildrenMap 创建一个存放子channel的map
 func NewChildrenMap[Message any]() *ChildrenMap[Message] {
-	return &ChildrenMap[Message]{}
+	return &ChildrenMap[Message]{
+		lock:       &sync.Mutex{},
+		channelMap: make(map[uint64]*Channel[Message]),
+	}
 }
 
 // Run 在map上执行函数，此函数的执行是串行互斥并发安全的
@@ -28,11 +37,12 @@ func (x *ChildrenMap[Message]) Run(f MapRunFunc[Message]) {
 	f(x.channelMap)
 }
 
-// BlockUtilEmpty 阻塞住直到当前map为空，期间会每隔给定的描述尝试获取map的情况
+// BlockUtilEmpty 阻塞住直到当前map为空，期间会每隔给定的间隔尝试获取map的情况
 func (x *ChildrenMap[Message]) BlockUtilEmpty(f MapRunFunc[Message], interval ...time.Duration) {
 
+	// 设置间隔的默认值，默认是每隔1秒试探一次
 	if len(interval) == 0 {
-		interval = append(interval, time.Second*3)
+		interval = append(interval, time.Second)
 	}
 
 	isMapNotEmpty := false
