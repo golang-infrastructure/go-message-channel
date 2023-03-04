@@ -1,6 +1,10 @@
 package message_channel
 
-import "sync"
+import (
+	"context"
+	"sync"
+	"time"
+)
 
 // Channel 用于把多个Channel连接为一个channel，这样就可以用基于channel构建更复杂的通信模型
 // 每个Channel对象是对go原生的channel的一个包装，同时增加了一些功能
@@ -50,8 +54,9 @@ func NewChannel[Message any](options *ChannelOptions[Message]) *Channel[Message]
 		}()
 
 		// 开始消费，处理channel
-		count := 1
+		count := 0
 		for message := range x.channel {
+			count++
 			if x.options.ChannelConsumerFunc != nil {
 				x.options.ChannelConsumerFunc(count, message)
 			}
@@ -83,11 +88,21 @@ func (x *Channel[Message]) MakeChildChannel() *Channel[Message] {
 
 	// 在子信道关闭的时候告知父信道自己已经退出了
 	subChannel.options.CloseEventListener = func() {
-		x.childrenChannelMap.Remove(subChannel.ID)
+		timeout, cancelFunc := context.WithTimeout(context.Background(), time.Second*30)
+		defer cancelFunc()
+		err := x.childrenChannelMap.Remove(timeout, subChannel.ID)
+		if err != nil {
+			// TODO
+		}
 	}
 
 	// Adds a semaphore to the parent channel
-	x.childrenChannelMap.Set(subChannel.ID, subChannel)
+	timeout, cancelFunc := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancelFunc()
+	err := x.childrenChannelMap.Set(timeout, subChannel.ID, subChannel)
+	if err != nil {
+		// TODO
+	}
 
 	return subChannel
 }
@@ -106,11 +121,21 @@ func (x *Channel[Message]) SenderWaitAndClose(f ...MapRunFunc[Message]) {
 	}
 
 	// 等待子channel消费完成退出
-	x.childrenChannelMap.BlockUtilEmpty(f[0])
+	timeout, cancelFunc := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancelFunc()
+	err := x.childrenChannelMap.BlockUtilEmpty(timeout, f[0])
+	if err != nil {
+		// TODO
+	}
 
 	// 关闭channel表示发送者不会再发送了，发送完队列中剩余的想这些就要退出了
 	close(x.channel)
 
 	// 等待消费完队列中剩余的消息
 	x.selfWorkerWg.Wait()
+}
+
+// TopologyAscii 把拓扑逻辑转为ASCII图形
+func (x *Channel[Message]) TopologyAscii(f ...MapRunFunc[Message]) {
+	// TODO
 }
