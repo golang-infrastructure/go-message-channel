@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// 用于生成全局唯一ID，这样一次进程启动的生命周期中具有一个唯一的ID
+// 用于生成全局唯一ID，这样一次进程启动的生命周期中分配的ID都是唯一的
 var idGenerator = atomic.Uint64{}
 
 // MapRunFunc 用来处理map函数
